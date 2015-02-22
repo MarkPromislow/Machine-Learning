@@ -1,0 +1,79 @@
+---
+title: "Machine Learning"
+author: "Mark Promislow"
+date: "Friday, February 20, 2015"
+output: html_document
+---
+# Summary
+The data for this project come from the "Weight Lifting Exercises Dataset" in http://groupware.les.inf.puc-rio.br/har.   Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).  Sensors on their belt, arm, forearm, and dumbbell recorded measurements of the activity.
+
+# Data Analysis
+The training data was obtained from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv and the test data from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv. The model uses the fields and record types that were populated in the test set.
+
+To estimate the expected out of sample error, I created a random validation training set consisting of 75% of the training set, fit a random forest model, and calculated the error from the remaining 25% of the values.  This was repeated 20 times.
+
+```{r, echo=TRUE}
+library(caret)
+library(randomForest)
+setwd("C:/Users/Mark/Google Drive/Machine Learning")
+training_raw <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+columns <- c("user_name",
+    "roll_belt","pitch_belt","yaw_belt","total_accel_belt",
+    "gyros_belt_x","gyros_belt_y","gyros_belt_z",
+    "accel_belt_x","accel_belt_y","accel_belt_z",
+    "magnet_belt_x","magnet_belt_y","magnet_belt_z",
+    "roll_arm","pitch_arm","yaw_arm","total_accel_arm",
+    "gyros_arm_x","gyros_arm_y","gyros_arm_z",
+    "accel_arm_x","accel_arm_y","accel_arm_z",
+    "magnet_arm_x","magnet_arm_y","magnet_arm_z",
+    "roll_dumbbell","pitch_dumbbell","yaw_dumbbell","total_accel_dumbbell",
+    "gyros_dumbbell_x","gyros_dumbbell_y","gyros_dumbbell_z",
+    "accel_dumbbell_x","accel_dumbbell_y","accel_dumbbell_z",
+    "magnet_dumbbell_x","magnet_dumbbell_y","magnet_dumbbell_z",
+    "roll_forearm","pitch_forearm","yaw_forearm","total_accel_forearm",
+    "gyros_forearm_x","gyros_forearm_y","gyros_forearm_z",
+    "accel_forearm_x","accel_forearm_y","accel_forearm_z",
+    "magnet_forearm_x","magnet_forearm_y","magnet_forearm_z",
+    "classe")
+training <- training_raw[training_raw$new_window=="no",columns]
+```
+
+To estimate the expected out of sample error, I created a random validation training set consisting of 75% of the training set, fit a random forest model, and calculated the error from the remaining 25% of the values.  This was repeated 20 times.
+
+```{r, echo=TRUE}
+missClass = function(values, prediction) {sum(prediction != values) / length(values)}
+
+set.seed(1234)
+results <- c()
+for (n in 1:20)
+{
+    inTrain <- createDataPartition(training$classe, p = 3/4)[[1]]
+    training1 <- training[inTrain,]
+    validation1 <- training[-inTrain,]
+    fit1 <- randomForest(classe~.,data = training1)
+    pre1 <- predict(fit1, newdata = validation1)
+    results = c(results, missClass(validation1$classe, pre1))
+}
+result_mean <- mean(results)
+result_sd <- sd(results)
+```
+The expected out of sample error is `r result_mean` with a standard deviation of `r result_sd`.
+
+The following plot shows the in sample error rate of the random forests used in the predictor.
+
+```{r, echo=TRUE}
+fit <- randomForest(classe~.,data=training)
+plot(fit)
+pre <- predict(fit, newdata=testing)
+
+answers <- as.character(pre)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
